@@ -1,0 +1,19 @@
+{
+  "name": "tailproxy",
+  "version": "0.1.2",
+  "description": "Tail Proxy",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "telemetrix",
+  "license": "ISC",
+  "dependencies": {
+    "moment": "^2.17.1",
+    "mqtt": "^2.0.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/telemetrix/tailproxy"
+  }
+}
