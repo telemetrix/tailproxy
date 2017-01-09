@@ -21,11 +21,11 @@ var session_id = 0;
 var bytesRead = 0;
 var bytesWritten = 0;
 
-const PROXY_APP_TOKEN = 'DwDP3xgm1dAubdLE';
+const PROXY_APP_TOKEN = '7btJ5FKG3wRGJgmz';
 const PROXY_USERNAME_ID = 'nodejs_telemetrix_proxy';
 const PROXY_PORT = 1883;
 
-const DEVICE_APP_TOKEN = 'tbiaWK1z81o4oPUn';
+const DEVICE_APP_TOKEN = 'YzT7SyIkdStcOy1x';
 
 /** Creates TCP server and sets certain event handlers */
 var server = net.createServer(function(socket) { 
