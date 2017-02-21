@@ -4,8 +4,7 @@ var tr50api = require('./tr50api.js');
 var tools = require('./tools.js');
 var moment = require('moment');
 
-const FRAME_ACK_TCP_CONNECTED = 0x0A;
-const FRAME_ACK_TCP_RCV_OK = 0x0A;
+const FRAME_ACK_TCP_RCV_OK = [0x52, 0x43, 0x56, 0x5f, 0x4f, 0x4b, 0x0a];
 
 var sockets = []; // TCP clients array
 var mqtt_clients = []; // MQTT clients array
@@ -22,16 +21,14 @@ var bytesRead = 0;
 var bytesWritten = 0;
 
 const PROXY_APP_TOKEN = '7btJ5FKG3wRGJgmz';
-const PROXY_USERNAME_ID = 'nodejs_telemetrix_proxy';
+const PROXY_USERNAME_ID = 'nodejs_telemetrix_proxy_dev';
 const PROXY_PORT = 1883;
 
 const DEVICE_APP_TOKEN = 'YzT7SyIkdStcOy1x';
 
 /** Creates TCP server and sets certain event handlers */
-var server = net.createServer(function(socket) { 
-
+var server = net.createServer(function (socket) {
     setSocketEvents(socket);
-
 });
 
 
@@ -41,13 +38,13 @@ function removeSocket(socket) {
     console.log('DELETING socket_id = ' + socket.session_id);
 
     for (idx in mqtt_clients) {
-        console.log('checking mqtt_client_id = ' + mqtt_clients[idx].session_id );
+        console.log('checking mqtt_client_id = ' + mqtt_clients[idx].session_id);
         if (mqtt_clients[idx].session_id === socket.session_id) {
-            console.log('ending mqtt_client_id = ' + mqtt_clients[idx].session_id );
-            
+            console.log('ending mqtt_client_id = ' + mqtt_clients[idx].session_id);
+
             mqtt_clients[idx].end();
             mqtt_clients.splice(idx, 1);
-            
+
             console.log('ARRAY length: ' + mqtt_clients.length);
             break;
         }
@@ -58,7 +55,7 @@ function removeSocket(socket) {
 function setSocketEvents(socket) {
 
     /** Set Timeout after created socket will be killed if in idle */
-    socket.setTimeout(15000, function(){
+    socket.setTimeout(15000, function () {
         socket.end();
     });
 
@@ -69,12 +66,12 @@ function setSocketEvents(socket) {
     socket.session_id = session_id;
     sockets.push(socket);
 
-    socket.on('close', function() {
+    socket.on('close', function () {
         removeSocket(socket);
         mqtt_connection.sendClientsNumber(sockets.length);
     });
 
-    socket.on('data', function(chunk) {
+    socket.on('data', function (chunk) {
 
         bytesRead += socket.bytesRead;
         bytesWritten += socket.bytesWritten;
@@ -84,7 +81,9 @@ function setSocketEvents(socket) {
 
         /** Checking the message type */
         switch (buf.length) {
-            case 34: 
+            case 34:
+
+                socket.write(Buffer.from(FRAME_ACK_TCP_RCV_OK),function(){});
 
                 var tailPacketLen = tools.getIntFromBytes(buf, 2, 1);
                 var tailMacAddr = buf.toString('hex', 3, 9);
@@ -95,10 +94,10 @@ function setSocketEvents(socket) {
                 var tailBatt = tools.getIntFromBytes(buf, 16, 1);
                 var tailBattStat = tools.getIntFromBytes(buf, 17, 1);
                 var tailActLevel = tools.getIntFromBytes(buf, 18, 4);
-                
-                var tailGpsLat = buf.readInt32BE(22) / 1000000;
-                var tailGpsLon = buf.readInt32BE(26) / 1000000;
-                
+
+                var tailGpsLat = GetLatLon(buf.readInt32BE(22));
+                var tailGpsLon = GetLatLon(buf.readInt32BE(26));
+
                 var tailDevStat = tools.getIntFromBytes(buf, 30, 1);
                 var tailSwVer = tools.getIntFromBytes(buf, 31, 1);
 
@@ -107,18 +106,18 @@ function setSocketEvents(socket) {
                     socket.setTimeout(0);   // Clear socket timeout
                     socket.mac_id = tailMacAddr;
                     createNewMqttClientConn(socket, tailMacAddr);
-                    socket.isMac = true;                    
+                    socket.isMac = true;
                 }
 
                 console.log('MSG: STD; ' + tailMacAddr + '; TIME: ' + tailTimeStampRaw + ' ' + tailTimeStamp + '; SOCKET.MAC_ID: ' + socket.mac_id);
 
                 for (idx in mqtt_clients) { // Looping over mqtt client array
                     if (socket.session_id === mqtt_clients[idx].session_id) {
-                        
+
                         mqtt_clients[idx].publish('api', JSON.stringify(tr50api.logPublish('STD_MSG; ' + ' FRM_LEN: ' + tailPacketLen +
-                        '; PROT_VER: ' + tailProtVer + '; MAC: ' + tailMacAddr + '; TEMP: ' + tailTemp + '; TIME: ' + tailTimeStamp + 
-                        '; BATT: ' + tailBatt + '; BSTAT: ' + tailBattStat + '; ACT: ' + tailActLevel + 
-                        '; GPS_LAT: ' + tailGpsLat + '; GPS_LON: ' + tailGpsLon + '; DEV_STAT: ' + tailDevStat + '; SW_VER: ' + tailSwVer )));
+                            '; PROT_VER: ' + tailProtVer + '; MAC: ' + tailMacAddr + '; TEMP: ' + tailTemp + '; TIME: ' + tailTimeStamp +
+                            '; BATT: ' + tailBatt + '; BSTAT: ' + tailBattStat + '; ACT: ' + tailActLevel +
+                            '; GPS_LAT: ' + tailGpsLat + '; GPS_LON: ' + tailGpsLon + '; DEV_STAT: ' + tailDevStat + '; SW_VER: ' + tailSwVer)));
 
                         mqtt_clients[idx].publish('api', JSON.stringify(tr50api.locationPublish(tailGpsLat, tailGpsLon)));
                         mqtt_clients[idx].publish('api', JSON.stringify(tr50api.attributePublish('mac', tailMacAddr)));
@@ -143,19 +142,19 @@ function setSocketEvents(socket) {
 
     });
 
-    socket.on('end', function() {
+    socket.on('end', function () {
         removeSocket(socket);
         mqtt_connection.sendClientsNumber(sockets.length);
     });
 
-    socket.on('error', function(error){
+    socket.on('error', function (error) {
         console.log('Error: ' + error);
     });
 };
 
 
 /** Runs proxy server */
-server.listen(port, function() {
+server.listen(port, function () {
     console.log('Server listening at localhost: ' + port);
     createProxyMqttConnection();
 });
@@ -172,41 +171,41 @@ function createProxyMqttConnection() {
 
     mqtt_connection = mqtt.connect('mqtt://api.devicewise.com', options);
 
-    mqtt_connection.on('connect', function() {
+    mqtt_connection.on('connect', function () {
         console.log('Proxy connected to the server by MQTT protocol.');
     });
 
-    
-    mqtt_connection.sendClientsNumber = function(value) {
 
-            var tr50json = {
-                "1": {
-                    "command": "property.publish",
-                    "params":{
-                        "key": "clients_connected",
-                        "value": value
-                    }
+    mqtt_connection.sendClientsNumber = function (value) {
+
+        var tr50json = {
+            "1": {
+                "command": "property.publish",
+                "params": {
+                    "key": "clients_connected",
+                    "value": value
                 }
-            };
-
-            this.publish('api', JSON.stringify(tr50json));
+            }
         };
 
-    mqtt_connection.sendBytesReadWritten = function(read, written) {
+        this.publish('api', JSON.stringify(tr50json));
+    };
+
+    mqtt_connection.sendBytesReadWritten = function (read, written) {
         this.publish('api', JSON.stringify(tr50api.attributePublish('readBytes', read)));
         this.publish('api', JSON.stringify(tr50api.attributePublish('wrtittenBytes', written)));
     };
-    };
+};
 
 
-function createNewMqttClientConn(socket, tailMacAddr){
+function createNewMqttClientConn(socket, tailMacAddr) {
     /** Creates new MQTT client connection */
     var options = {
         port: 1883,
         username: tailMacAddr,
         // username: 'client_'+ mqtt_client_id++, // Sets the client ID and increments for the next one
         password: DEVICE_APP_TOKEN, // Sets DW App Token
-        clientId: '345j6k3l5k6j3l4j5k6'+ mqtt_client_id
+        clientId: '345j6k3l5k6j3l4j5k6' + mqtt_client_id
     }
 
     var mqtt_client = mqtt.connect('mqtt://api.devicewise.com', options);
@@ -217,7 +216,7 @@ function createNewMqttClientConn(socket, tailMacAddr){
     session_id++;
     mqtt_clients.push(mqtt_client)
 
-    console.log('socket.session_id = '+ socket.session_id + ' --- mqtt_client.session_id = ' + mqtt_client.session_id);
+    console.log('socket.session_id = ' + socket.session_id + ' --- mqtt_client.session_id = ' + mqtt_client.session_id);
     mqtt_connection.sendClientsNumber(sockets.length);
 }
 
@@ -239,5 +238,17 @@ function getAlarmStatMsg(key, status) {
                 return 'device in production tests';
             case 2:
                 return 'device tested';
+        }
     }
-}};
+};
+
+function GetLatLon(value){
+    
+    val_temp = value;
+    var1 = Math.floor(value / 1000000);
+    var2 = Math.floor((val_temp - (var1 * 1000000)) / 10000) / 60;
+    var3 = ((val_temp - (Math.floor(val_temp / 10000) * 10000)) / 100) / 3600;
+
+    var number = new Number(var1 + var2 + var3);
+    return number.toPrecision(7);
+};
