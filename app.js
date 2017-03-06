@@ -4,15 +4,13 @@ var tr50api = require('./tr50api.js');
 var tools = require('./tools.js');
 var moment = require('moment');
 
-const FRAME_ACK_TCP_RCV_OK = [0x52, 0x43, 0x56, 0x5f, 0x4f, 0x4b, 0x0a];
+const FRAME_ACK_TCP_RCV_OK = [0x52, 0x43, 0x56, 0x5f, 0x4f, 0x4b, 0x0a]; // ACK message
 
-var sockets = []; // TCP clients array
-var mqtt_clients = []; // MQTT clients array
+var sockets = []; // TCP clients array -> connected to the Proxy
+var mqtt_clients = []; // MQTT clients array -> connected to deviceWISE M2M service
 
-var port = 5000;
-var intervalFlag = false;
-
-var mqtt_connection; // Main Proxy MQTT client object
+var port = 1720; // Proxy TCP port
+var mqtt_connection; // Main Proxy MQTT client object -> connected to deviceWISE M2M service
 
 var mqtt_client_id = 0;
 var session_id = 0;
@@ -51,10 +49,10 @@ function removeSocket(socket) {
     }
 };
 
-/** Function sets TCP socket events */
+/** Function sets TCP socket events for proxy server */
 function setSocketEvents(socket) {
 
-    /** Set Timeout after created socket will be killed if in idle */
+    /** Closes TCP socket if doesn't receive any data from the endpoint for Timoeut value */
     socket.setTimeout(15000, function () {
         socket.end();
     });
@@ -83,7 +81,7 @@ function setSocketEvents(socket) {
         switch (buf.length) {
             case 34:
 
-                socket.write(Buffer.from(FRAME_ACK_TCP_RCV_OK),function(){});
+                socket.write(Buffer.from(FRAME_ACK_TCP_RCV_OK), function () { });
 
                 var tailPacketLen = tools.getIntFromBytes(buf, 2, 1);
                 var tailMacAddr = buf.toString('hex', 3, 9);
@@ -102,8 +100,21 @@ function setSocketEvents(socket) {
                 var tailSwVer = tools.getIntFromBytes(buf, 31, 1);
 
                 /** Tutaj przenieść cały proces tworzenia nowego połączenia MQTT */
-                if (!socket.isMac) {
+                if (!socket.isMac) { // Checks if MAC is set
                     socket.setTimeout(0);   // Clear socket timeout
+
+                    for (ipx in sockets) {
+                        if (sockets[ipx].mac_id === tailMacAddr) {
+                            
+                            sockets[ipx].end();
+                            sockets.splice(ipx, 1);
+                            
+                            mqtt_clients[ipx].end();
+                            mqtt_clients.splice(ipx, 1);
+                            break;
+                        }
+                    }
+
                     socket.mac_id = tailMacAddr;
                     createNewMqttClientConn(socket, tailMacAddr);
                     socket.isMac = true;
@@ -111,7 +122,7 @@ function setSocketEvents(socket) {
 
                 console.log('MSG: STD; ' + tailMacAddr + '; TIME: ' + tailTimeStampRaw + ' ' + tailTimeStamp + '; SOCKET.MAC_ID: ' + socket.mac_id);
 
-                for (idx in mqtt_clients) { // Looping over mqtt client array
+                for (idx in mqtt_clients) { // Looping over mqtt clients array
                     if (socket.session_id === mqtt_clients[idx].session_id) {
 
                         mqtt_clients[idx].publish('api', JSON.stringify(tr50api.logPublish('STD_MSG; ' + ' FRM_LEN: ' + tailPacketLen +
@@ -242,8 +253,8 @@ function getAlarmStatMsg(key, status) {
     }
 };
 
-function GetLatLon(value){
-    
+function GetLatLon(value) {
+
     val_temp = value;
     var1 = Math.floor(value / 1000000);
     var2 = Math.floor((val_temp - (var1 * 1000000)) / 10000) / 60;
