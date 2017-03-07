@@ -19,7 +19,7 @@ var bytesRead = 0;
 var bytesWritten = 0;
 
 const PROXY_APP_TOKEN = '7btJ5FKG3wRGJgmz';
-const PROXY_USERNAME_ID = 'nodejs_telemetrix_proxy_dev';
+const PROXY_USERNAME_ID = 'nodejs_telemetrix_proxy';
 const PROXY_PORT = 1883;
 
 const DEVICE_APP_TOKEN = 'YzT7SyIkdStcOy1x';
