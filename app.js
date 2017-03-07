@@ -105,19 +105,19 @@ function setSocketEvents(socket) {
                 if (!socket.isMac) { // Checks if MAC is set
                     socket.setTimeout(0);   // Clear socket timeout
                     
-                    /*
+                    
                     for (ipx in sockets) {
                         if (sockets[ipx].mac_id === tailMacAddr) {
                             
-                            sockets[ipx].end();
+                            sockets[ipx].destroy();
                             sockets.splice(ipx, 1);
                             
-                            mqtt_clients[ipx].end();
+                            mqtt_clients[ipx].end(true);
                             mqtt_clients.splice(ipx, 1);
                             break;
                         }
                     }
-                    */
+                    
 
                     socket.mac_id = tailMacAddr;
                     createNewMqttClientConn(socket, tailMacAddr);
