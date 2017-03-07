@@ -32,6 +32,8 @@ var server = net.createServer(function (socket) {
 
 /** Function deletes TCP and MQTT sockets from session arrays */
 function removeSocket(socket) {
+    
+    socket.destroy();
     sockets.splice(sockets.indexOf(socket), 1);
     console.log('DELETING socket_id = ' + socket.session_id);
 
@@ -40,7 +42,7 @@ function removeSocket(socket) {
         if (mqtt_clients[idx].session_id === socket.session_id) {
             console.log('ending mqtt_client_id = ' + mqtt_clients[idx].session_id);
 
-            mqtt_clients[idx].end();
+            mqtt_clients[idx].end(true);
             mqtt_clients.splice(idx, 1);
 
             console.log('ARRAY length: ' + mqtt_clients.length);
@@ -99,10 +101,11 @@ function setSocketEvents(socket) {
                 var tailDevStat = tools.getIntFromBytes(buf, 30, 1);
                 var tailSwVer = tools.getIntFromBytes(buf, 31, 1);
 
-                /** Tutaj przenieść cały proces tworzenia nowego połączenia MQTT */
+                /** Creating new MQTT client connection assigned to the certain TCP session */
                 if (!socket.isMac) { // Checks if MAC is set
                     socket.setTimeout(0);   // Clear socket timeout
-
+                    
+                    /*
                     for (ipx in sockets) {
                         if (sockets[ipx].mac_id === tailMacAddr) {
                             
@@ -114,6 +117,7 @@ function setSocketEvents(socket) {
                             break;
                         }
                     }
+                    */
 
                     socket.mac_id = tailMacAddr;
                     createNewMqttClientConn(socket, tailMacAddr);
@@ -160,6 +164,8 @@ function setSocketEvents(socket) {
 
     socket.on('error', function (error) {
         console.log('Error: ' + error);
+        removeSocket(socket);
+        mqtt_connection.sendClientsNumber(sockets.length);
     });
 };
 
