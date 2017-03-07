@@ -32,7 +32,7 @@ var server = net.createServer(function (socket) {
 
 /** Function deletes TCP and MQTT sockets from session arrays */
 function removeSocket(socket) {
-    
+
     socket.destroy();
     sockets.splice(sockets.indexOf(socket), 1);
     console.log('DELETING socket_id = ' + socket.session_id);
@@ -104,20 +104,26 @@ function setSocketEvents(socket) {
                 /** Creating new MQTT client connection assigned to the certain TCP session */
                 if (!socket.isMac) { // Checks if MAC is set
                     socket.setTimeout(0);   // Clear socket timeout
-                    
-                    
+
+
                     for (ipx in sockets) {
                         if (sockets[ipx].mac_id === tailMacAddr) {
-                            
+
                             sockets[ipx].destroy();
                             sockets.splice(ipx, 1);
-                            
-                            mqtt_clients[ipx].end(true);
-                            mqtt_clients.splice(ipx, 1);
-                            break;
+
+                            for (irx in mqtt_client) {
+                                if (mqtt_clients[irx].session_id === sockets[ipx].session_id)
+
+                                    mqtt_clients[irx].end(true);
+                                mqtt_clients.splice(irx, 1);
+                                break;
+                            }
+
+
                         }
                     }
-                    
+
 
                     socket.mac_id = tailMacAddr;
                     createNewMqttClientConn(socket, tailMacAddr);
